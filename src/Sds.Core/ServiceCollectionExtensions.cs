@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.Configure<ActiveDirectoryOptions>(configuration.GetSection(SdsOptions.Section + ":ActiveDirectory"));
         services.AddSingleton<ShareLayout>();
         services.AddSingleton<ShareBootstrapper>();
+        services.AddSingleton<Networking.FirewallConfigurator>();
 
         // Database: a factory so singleton services and background jobs can open short lived
         // contexts. The connection string points at %ProgramData%\SDS\sds.db by default.

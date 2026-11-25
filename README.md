@@ -54,7 +54,7 @@ Then open http://localhost:8351. The console only serves static files; the brows
 
 ## Security
 
-On start SDS creates the `images` and `drivers` shares when they are missing, with the same share permissions WDS gives REMINST (SYSTEM and Administrators full, Authenticated Users read) plus `SDS Administrators` full. The SDSREMINST root and PXECORE are never shared, and an existing share is never changed. UNC paths returned by the API point to these shares, for example `\\<host>\images\<Group>\install.wim`. On a domain controller there is no local SAM, so the two "local" groups are created as domain local groups in `CN=Users` of the domain.
+On start SDS creates the `images` and `drivers` shares when they are missing, with the same share permissions WDS gives REMINST (SYSTEM and Administrators full, Authenticated Users read) plus `SDS Administrators` full. The SDSREMINST root and PXECORE are never shared, and an existing share is never changed. It also adds the inbound firewall rule `SDS Server (TCP-In)` for the API port when it is missing (`Sds:CreateFirewallRule`). UNC paths returned by the API point to these shares, for example `\\<host>\images\<Group>\install.wim`. On a domain controller there is no local SAM, so the two "local" groups are created as domain local groups in `CN=Users` of the domain.
 
 Windows Negotiate (Kerberos/NTLM). Writes need `BUILTIN\Administrators` or the local `SDS Administrators` group; reads also allow `SDS Operators`. Extra domain groups can be added in configuration. Client registration, polling, client unattend and client logs are anonymous, as in WDS. Image lists are filtered by the NTFS permissions of each image file (WDS user filter).
 
@@ -85,3 +85,21 @@ dotnet test
 ```
 
 Unit tests cover the INF parser, naming policy, filters and identifiers; integration tests run the real wimgapi split, export and compaction; API tests drive the whole server in memory.
+
+## Release
+
+`scripts/release.ps1` runs the tests, then publishes the Server and the Web Console as self-contained applications (the .NET runtime is included, so the target machine needs nothing installed) and zips each one:
+
+```
+.\scripts\release.ps1 -Version 1.2.0
+```
+
+```
+artifacts\release\1.2.0\SdsServer-1.2.0-win-x64.zip
+artifacts\release\1.2.0\SdsWeb-1.2.0-win-x64.zip
+artifacts\release\1.2.0\SHA256SUMS.txt
+```
+
+Without `-Version` the latest git tag is used (`v1.2.0` gives `1.2.0`), or `1.0.0` when there is none. `-Runtime win-x64, win-arm64` builds several architectures, and `-SkipTests` skips the tests. The wimgapi tests need administrator rights, so run the script from an elevated prompt unless you skip them.
+
+To install a package, extract it and run `SdsServer.exe` (or register it as a service, see [Run](#run)) and `SdsWeb.exe`. Edit `appsettings.json` next to each executable.

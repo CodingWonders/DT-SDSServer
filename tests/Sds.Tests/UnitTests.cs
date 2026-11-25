@@ -284,3 +284,29 @@ public class MiscTests
         Assert.True(DriverGroupService.FilterMatches(filter, "10.0.22621.1", null));
     }
 }
+
+/// <summary>Port detection for the startup firewall rule.</summary>
+public class FirewallPortTests
+{
+    private static SortedSet<int> Ports(params (string Key, string Value)[] settings) =>
+        Sds.Core.Networking.FirewallConfigurator.GetListenPorts(Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(new Microsoft.Extensions.Configuration.ConfigurationBuilder(),
+                settings.Select(s => new KeyValuePair<string, string?>(s.Key, s.Value)))
+            .Build());
+
+    [Fact]
+    public void Reads_wildcard_and_specific_addresses() =>
+        Assert.Equal([8350, 8443], Ports(("urls", "http://*:8350;https://+:8443;http://10.0.0.5:8350")));
+
+    [Fact]
+    public void Ignores_loopback_and_dynamic_ports() =>
+        Assert.Empty(Ports(("urls", "http://localhost:8350;http://127.0.0.1:8351;http://[::1]:8352;http://*:0")));
+
+    [Fact]
+    public void Reads_kestrel_endpoints_and_port_lists() =>
+        Assert.Equal([80, 8350, 9000], Ports(
+            ("Kestrel:Endpoints:Api:Url", "http://0.0.0.0:8350"),
+            ("http_ports", "80;9000")));
+
+    [Fact]
+    public void No_configuration_means_no_rule() => Assert.Empty(Ports());
+}

@@ -25,6 +25,8 @@ Any value can also be set with environment variables (`Sds__Volume=E:`) or comma
 | `CreateShares` | true | Create the shares at startup when missing. Existing shares are never changed. |
 | `ApplyDefaultAcls` | true | Apply the default NTFS permissions when the root folder is created |
 | `CreateLocalGroups` | true | Create the security groups at startup when missing |
+| `CreateFirewallRule` | true | Create an inbound Windows Firewall rule for the API port(s) at startup when missing. Existing rules are never changed. |
+| `FirewallRuleName` | `SDS Server (TCP-In)` | Name of that rule |
 | `DataDirectory` | `%ProgramData%\SDS` | Database (`sds.db`), `Logs` and `Staging` |
 | `Compression` | `Lzx` | Compression of new `Res.RWM` and metadata WIMs (`None`, `Xpress`, `Lzx`, `Lzms`) |
 | `MaxConcurrentJobs` | 2 | Background jobs running at the same time |
@@ -38,6 +40,8 @@ Any value can also be set with environment variables (`Sds__Volume=E:`) or comma
 | `CorsOrigins` | `["http://localhost:8351"]` | Browser origins allowed to call the API with credentials |
 
 `BUILTIN\Administrators` always has the Admin role, whatever the configuration.
+
+The firewall rule allows inbound TCP on every port the server listens on from the network (`Urls`, `--urls`, `ASPNETCORE_URLS`, `Kestrel:Endpoints`), for all profiles. Loopback addresses such as `http://localhost:8350` need no rule and are skipped. A rule with the same name is left as it is, so you can narrow it (profiles, remote addresses); if its ports no longer match, the server logs a warning. Creating the rule needs administrator rights; without them the server logs a warning and starts anyway.
 
 ## Active Directory
 

@@ -7,6 +7,7 @@ using Sds.Core.Computers;
 using Sds.Core.Jobs;
 using Sds.Core.Logging;
 using Sds.Core.Multicast;
+using Sds.Core.Networking;
 using Sds.Core.Storage;
 using Sds.Data;
 
@@ -21,6 +22,10 @@ public sealed class StartupService(IServiceProvider services, ILogger<StartupSer
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Step 0: inbound firewall rule for the API port(s), so clients on the network can
+        // reach the server. Never fails the startup; a missing rule is logged as a warning.
+        services.GetRequiredService<FirewallConfigurator>().Run();
+
         // Step 1: folders, share, groups.
         services.GetRequiredService<ShareBootstrapper>().Run();
 

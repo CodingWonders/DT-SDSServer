@@ -44,6 +44,15 @@ public sealed class SdsOptions
     public bool CreateLocalGroups { get; set; } = true;
 
     /// <summary>
+    /// Create the inbound Windows Firewall rule for the API port(s) at startup when it does not
+    /// exist. An existing rule is never modified.
+    /// </summary>
+    public bool CreateFirewallRule { get; set; } = true;
+
+    /// <summary>Name of the inbound firewall rule created by <see cref="CreateFirewallRule"/>.</summary>
+    public string FirewallRuleName { get; set; } = "SDS Server (TCP-In)";
+
+    /// <summary>
     /// Folder for the database, logs and staging files. Kept outside SDSREMINST so the
     /// root only contains PXECORE, IMAGES and DRIVERS. Defaults to %ProgramData%\SDS.
     /// </summary>

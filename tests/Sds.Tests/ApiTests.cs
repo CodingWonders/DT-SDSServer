@@ -33,6 +33,7 @@ public sealed class SdsFactory : WebApplicationFactory<Program>
         builder.UseSetting("Sds:DataDirectory", Path.Combine(Root, "data"));
         builder.UseSetting("Sds:CreateShares", "false");
         builder.UseSetting("Sds:CreateLocalGroups", "false");
+        builder.UseSetting("Sds:CreateFirewallRule", "false");
         builder.UseSetting("Sds:ApplyDefaultAcls", "false");
         builder.UseSetting("Sds:EventLog", "false");
         builder.UseSetting("Sds:PublicServerName", "sds01");
