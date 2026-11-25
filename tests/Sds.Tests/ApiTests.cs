@@ -155,6 +155,22 @@ public class ApiTests : IClassFixture<SdsFactory>, IClassFixture<TestWim>
     }
 
     [Fact]
+    public async Task Auth_me_reports_account_and_role()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Client(null).GetAsync("/api/auth/me")).StatusCode);
+
+        var admin = await ReadAsync(await Client("admin").GetAsync("/api/auth/me"));
+        Assert.Equal("CONTOSO\\admin", admin["name"]!.GetValue<string>());
+        Assert.Equal("Admin", admin["role"]!.GetValue<string>());
+        Assert.True(admin["isReader"]!.GetValue<bool>());
+
+        var user = await ReadAsync(await Client("user").GetAsync("/api/auth/me"));
+        Assert.Equal("None", user["role"]!.GetValue<string>());
+        Assert.False(user["isAdmin"]!.GetValue<bool>());
+        Assert.False(user["isReader"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task Share_layout_is_created()
     {
         var info = await ReadAsync(await Client().GetAsync("/api/server"));

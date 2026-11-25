@@ -60,7 +60,7 @@ dotnet run --project src/Sds.Server
 dotnet run --project src/Sds.Web
 ```
 
-Then open http://localhost:8351. The console only serves static files; the browser calls the API directly with your Windows sign in. Its API address is `SdsApiUrl` in `src/Sds.Web/appsettings.json`, and the server must list the console origin in `Sds:CorsOrigins` (default `http://localhost:8351`). When the console runs on another machine, use that machine's address in both settings and add the server to the browser's intranet zone so it sends Windows credentials.
+Then open http://localhost:8351. The console starts on a sign-in screen and only opens for an authorized account (Administrators, SDS Administrators or SDS Operators, checked with `GET /api/auth/me`); other accounts are refused. The console only serves static files; the browser calls the API directly with your Windows sign in. Its API address is `SdsApiUrl` in `src/Sds.Web/appsettings.json`, and the server must list the console origin in `Sds:CorsOrigins` (default `http://localhost:8351`). When the console runs on another machine, use that machine's address in both settings and add the server to the browser's intranet zone so it sends Windows credentials.
 
 ## Security
 

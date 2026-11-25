@@ -49,6 +49,7 @@ Role: **Admin** = `SdsAdmin` policy, **Reader** = `SdsReader` policy, **User** =
 
 | Method | Path | Role | Summary |
 |---|---|---|---|
+| GET | `/api/auth/me` | User | Signed in account and its SDS role |
 | GET | `/api/server` | Reader | Server status and statistics |
 | GET | `/api/server/settings` | Reader | Server policy settings |
 | PUT | `/api/server/settings` | Admin | Replace server policy settings |

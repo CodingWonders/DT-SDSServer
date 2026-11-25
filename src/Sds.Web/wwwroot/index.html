@@ -10,12 +10,21 @@
 </head>
 <body>
   <header class="topbar">
-    <button class="nav-toggle" id="navToggle" aria-label="Show menu">&#9776;</button>
+    <button class="nav-toggle" id="navToggle" aria-label="Show menu" hidden>&#9776;</button>
     <div class="brand">SDS Console</div>
-    <div class="api-status" id="apiStatus">Connecting...</div>
+    <div class="api-status" id="apiStatus"></div>
+    <!-- Signed in account; shown once sign in succeeds. -->
+    <div class="account" id="account" hidden>
+      <span id="accountName"></span>
+      <button class="small" id="signOut" type="button">Sign out</button>
+    </div>
   </header>
 
-  <div class="layout">
+  <!-- Sign-in screen: the console always starts here (app.js). -->
+  <main class="signin" id="signin"></main>
+
+  <!-- The console itself, hidden until an authorized account is signed in. -->
+  <div class="layout" id="layout" hidden>
     <!-- Navigation: one entry per view; app.js fills it from its view registry. -->
     <nav class="sidebar" id="sidebar" aria-label="Sections"></nav>
 

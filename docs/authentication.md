@@ -32,6 +32,19 @@ Rules:
 
 On a domain controller there is no local SAM, so SDS creates `SDS Administrators` and `SDS Operators` as domain local groups in `CN=Users` of the domain.
 
+## Signing in: GET /api/auth/me
+
+Returns the caller's account and SDS role. **User** (any authenticated account), so it answers `200` for accounts that are authenticated but not authorized, and `401` without credentials. Management front ends call it first and refuse to continue unless `isReader` is true; the Web Console starts on a sign-in screen that does exactly this.
+
+Response `200`:
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | Windows account name, for example `CONTOSOlice` |
+| `role` | string | `Admin`, `Reader` or `None` |
+| `isAdmin` | bool | True when the caller satisfies `SdsAdmin` |
+| `isReader` | bool | True when the caller satisfies `SdsReader` (always true for admins) |
+
 ## Deployment client endpoints
 
 The deployment client endpoints under `/api/client` follow WDS:
