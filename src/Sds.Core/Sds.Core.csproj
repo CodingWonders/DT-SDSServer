@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Business logic: share layout, image store, driver store, computers, naming, multicast. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sds.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="System.Management" Version="10.0.15" />
+    <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.15" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sds.Imaging\Sds.Imaging.csproj" />
+    <ProjectReference Include="..\Sds.Data\Sds.Data.csproj" />
+    <ProjectReference Include="..\Sds.DirectoryServices\Sds.DirectoryServices.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Test console for the SDS REST API. A separate process from the server: it only serves the
+    static browser application in wwwroot, and the browser calls the SDS API directly with the
+    user's Windows credentials (the API must list this origin in Sds:CorsOrigins).
+  -->
+  <PropertyGroup>
+    <AssemblyName>SdsWeb</AssemblyName>
+    <RootNamespace>Sds.Web</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Program.cs uses the exe folder as content root (works as a service and from any
+         working directory), so the static files must sit next to the exe after a build too. -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

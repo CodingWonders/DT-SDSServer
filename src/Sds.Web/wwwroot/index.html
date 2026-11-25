@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDS Console</title>
+  <link rel="stylesheet" href="app.css">
+  <!-- Sets window.SDS_API (address of the SDS REST API), served by the Sds.Web host. -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <button class="nav-toggle" id="navToggle" aria-label="Show menu">&#9776;</button>
+    <div class="brand">SDS Console</div>
+    <div class="api-status" id="apiStatus">Connecting...</div>
+  </header>
+
+  <div class="layout">
+    <!-- Navigation: one entry per view; app.js fills it from its view registry. -->
+    <nav class="sidebar" id="sidebar" aria-label="Sections"></nav>
+
+    <!-- The active view renders here. -->
+    <main class="content" id="content"></main>
+  </div>
+
+  <!-- Running background jobs (add, export, import...) with live progress. -->
+  <aside class="job-tray" id="jobTray" aria-live="polite"></aside>
+
+  <!-- Notifications. -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <!-- Dialog used for every form. -->
+  <dialog id="dialog" class="dialog"></dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

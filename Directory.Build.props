@@ -1,0 +1,18 @@
+<!--
+  Shared build settings for every project in the SDS solution.
+  All projects target Windows because the server relies on wimgapi.dll,
+  NTFS ACLs, SMB shares and (optionally) Active Directory.
+-->
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Produce XML documentation so the OpenAPI document carries the comments. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Company>SDS</Company>
+    <Product>SDS (Simple Deployment Services)</Product>
+  </PropertyGroup>
+</Project>

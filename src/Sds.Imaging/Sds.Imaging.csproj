@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Managed wrapper around the Windows Imaging API (wimgapi.dll). -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sds.Tests" />
+  </ItemGroup>
+</Project>
