@@ -10,7 +10,7 @@ Any value can also be set with environment variables (`Sds__Volume=E:`) or comma
 
 | Key | Default | Description |
 |---|---|---|
-| `Urls` | `http://*:8350` | Addresses Kestrel listens on |
+| `Urls` | `http://*:8350` | Addresses the server listens on |
 | `AllowedHosts` | `*` | Host filtering |
 | `Serilog` | | Log levels (Serilog configuration) |
 
