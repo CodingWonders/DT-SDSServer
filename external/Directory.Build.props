@@ -1,0 +1,6 @@
+<!--
+  Third-party submodules (SharpPXE) build with their own settings. MSBuild uses the nearest
+  Directory.Build.props, so this empty file keeps the SDS settings of the repository root
+  (target framework, product name, XML documentation) away from them.
+-->
+<Project />

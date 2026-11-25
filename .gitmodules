@@ -1,0 +1,3 @@
+[submodule "external/SharpPXE"]
+	path = external/SharpPXE
+	url = https://github.com/CodingWonders/SharpPXE.git

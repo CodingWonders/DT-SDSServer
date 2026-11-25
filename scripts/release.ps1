@@ -11,10 +11,16 @@
         artifacts\release\<Version>\SdsWeb-<Version>-<Runtime>.zip
         artifacts\release\<Version>\SHA256SUMS.txt
 
+    The server package also carries SharpPXE (the network boot server, git submodule in
+    external\SharpPXE) in its SharpPXE folder: SharpPXE.exe (Native AOT), SharpPXE.Gui.exe
+    (self-contained single file), SharpPXE.ini and files\. SharpPXE is 64-bit only, so it is
+    left out of win-x86 packages.
+
     Steps:
       1. Check the .NET SDK and clear the output folder of this version.
       2. Run the test suite (skip with -SkipTests).
-      3. Publish each project for each runtime into a staging folder.
+      3. Publish each project for each runtime into a staging folder, and SharpPXE into the
+         SharpPXE folder of the server package.
       4. Remove development only files and add LICENSE and README.md.
       5. Zip each staging folder and write SHA256 checksums.
 
@@ -34,6 +40,11 @@
 .PARAMETER OutputDirectory
     Root folder of the packages. Defaults to artifacts\release at the repository root.
 
+.PARAMETER SkipSharpPXE
+    Do not add SharpPXE to the server package. Native AOT needs the Visual Studio
+    "Desktop development with C++" workload (and the ARM64 C++ tools for win-arm64); use this
+    switch on a machine without them.
+
 .PARAMETER SkipTests
     Do not run dotnet test before packing. The imaging and API tests capture WIM files with
     wimgapi, which needs administrator privileges: run the script from an elevated prompt, or
@@ -44,6 +55,9 @@
 
 .EXAMPLE
     .\scripts\release.ps1 -Version 1.2.0 -Runtime win-x64, win-arm64 -SkipTests
+
+.EXAMPLE
+    .\scripts\release.ps1 -Version 1.2.0 -SkipSharpPXE
 #>
 [CmdletBinding()]
 param(
@@ -56,7 +70,9 @@ param(
 
     [string] $OutputDirectory,
 
-    [switch] $SkipTests
+    [switch] $SkipTests,
+
+    [switch] $SkipSharpPXE
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,6 +85,12 @@ $projects = @(
     @{ Name = 'SdsServer'; Path = Join-Path $repoRoot 'src\Sds.Server\Sds.Server.csproj' },
     @{ Name = 'SdsWeb';    Path = Join-Path $repoRoot 'src\Sds.Web\Sds.Web.csproj' }
 )
+
+# SharpPXE (git submodule), packed into the server package.
+$sharpPxeRoot = Join-Path $repoRoot 'external\SharpPXE'
+$sharpPxeServer = Join-Path $sharpPxeRoot 'src\SharpPXE\SharpPXE.csproj'
+$sharpPxeGui = Join-Path $sharpPxeRoot 'src\SharpPXE.Gui\SharpPXE.Gui.csproj'
+$sharpPxeRuntimes = @('win-x64', 'win-arm64')
 
 # Files that only make sense on a developer machine.
 $developmentFiles = @('appsettings.Development.json')
@@ -102,6 +124,33 @@ function Get-DefaultVersion {
     return '1.0.0'
 }
 
+function Publish-SharpPXE {
+    # Same output as SharpPXE's own build.ps1, except that the GUI is self-contained like the
+    # rest of the release (no .NET Desktop Runtime needed). SharpPXE keeps its own version.
+    param([string] $Rid, [string] $Destination)
+
+    Write-Host "Publishing SharpPXE ($Rid)" -ForegroundColor Cyan
+    Invoke-Native dotnet @('publish', $sharpPxeServer, '-c', $Configuration, '-r', $Rid, '-o', $Destination, '--nologo')
+    Invoke-Native dotnet @(
+        'publish', $sharpPxeGui,
+        '-c', $Configuration,
+        '-r', $Rid,
+        '--self-contained', 'true',
+        '-o', $Destination,
+        '-p:PublishSingleFile=true',
+        '-p:IncludeNativeLibrariesForSelfExtract=true',
+        '-p:EnableCompressionInSingleFile=true',
+        '--nologo'
+    )
+
+    # Debug symbols and leftovers are not needed to run (as in SharpPXE's build.ps1).
+    Get-ChildItem $Destination -Filter *.pdb | Remove-Item -Force
+    Get-ChildItem $Destination -Filter *.staticwebassets.endpoints.json | Remove-Item -Force
+
+    Copy-Item (Join-Path $sharpPxeRoot 'LICENSE') $Destination
+    Copy-Item (Join-Path $sharpPxeRoot 'README.md') $Destination
+}
+
 # ---------------------------------------------------------------------
 # Step 1: environment and output folder
 # ---------------------------------------------------------------------
@@ -131,6 +180,20 @@ foreach ($dir in @($releaseDirectory, $stagingRoot)) {
     }
 
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
+}
+
+if (-not $SkipSharpPXE) {
+    # A clone without --recurse-submodules has an empty external\SharpPXE.
+    if (-not (Test-Path $sharpPxeServer)) {
+        Write-Host 'Fetching the SharpPXE submodule' -ForegroundColor Cyan
+        Invoke-Native git @('-C', $repoRoot, 'submodule', 'update', '--init', 'external/SharpPXE')
+    }
+
+    # Native AOT's linker setup calls vswhere.exe, which is not always on PATH.
+    $installer = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
+    if ((Test-Path $installer) -and -not (($env:PATH -split ';') -contains $installer)) {
+        $env:PATH = "$installer;$env:PATH"
+    }
 }
 
 Write-Host "SDS release $Version ($Configuration) for $($Runtime -join ', ')" -ForegroundColor Cyan
@@ -174,6 +237,15 @@ foreach ($rid in $Runtime) {
 
         Copy-Item (Join-Path $repoRoot 'LICENSE') $staging
         Copy-Item (Join-Path $repoRoot 'README.md') $staging
+
+        if ($project.Name -eq 'SdsServer' -and -not $SkipSharpPXE) {
+            if ($sharpPxeRuntimes -notcontains $rid) {
+                Write-Warning "SharpPXE is 64-bit only; $packageName does not include it."
+            }
+            else {
+                Publish-SharpPXE -Rid $rid -Destination (Join-Path $staging 'SharpPXE')
+            }
+        }
 
         $packages += @{ Name = $packageName; Staging = $staging }
     }

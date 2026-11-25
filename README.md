@@ -22,6 +22,16 @@ In the System Deployment Services, the following structure is used:
 
 Images are split and merged with `wimgapi.dll`, the library WDS itself uses, so files are interchangeable with WDS.
 
+## Source
+
+[SharpPXE](https://github.com/CodingWonders/SharpPXE), the network boot server that goes in PXECORE, is a git submodule in `external/SharpPXE`. Clone with submodules:
+
+```
+git clone --recurse-submodules <repository URL>
+```
+
+or, in an existing clone, `git submodule update --init`. SharpPXE builds with its own settings; it is not part of `Sds.sln`.
+
 ## Run
 
 To launch the Server component as a standard application, run:
@@ -99,6 +109,8 @@ artifacts\release\1.2.0\SdsServer-1.2.0-win-x64.zip
 artifacts\release\1.2.0\SdsWeb-1.2.0-win-x64.zip
 artifacts\release\1.2.0\SHA256SUMS.txt
 ```
+
+The server package also contains SharpPXE in its `SharpPXE` folder: `SharpPXE.exe` (Native AOT), `SharpPXE.Gui.exe` (self-contained), `SharpPXE.ini` and `files\`. Copy that folder to `<Volume>\SDSREMINST\PXECORE` and set it up as its [README](https://github.com/CodingWonders/SharpPXE#setup) describes; SharpPXE creates its own firewall rule. Building it needs the Visual Studio "Desktop development with C++" workload (plus the ARM64 C++ tools for `win-arm64`). SharpPXE is 64-bit only, so `win-x86` packages leave it out. Use `-SkipSharpPXE` to build without it. The script fetches the submodule when it is missing.
 
 Without `-Version` the latest git tag is used (`v1.2.0` gives `1.2.0`), or `1.0.0` when there is none. `-Runtime win-x64, win-arm64` builds several architectures, and `-SkipTests` skips the tests. The wimgapi tests need administrator rights, so run the script from an elevated prompt unless you skip them.
 
