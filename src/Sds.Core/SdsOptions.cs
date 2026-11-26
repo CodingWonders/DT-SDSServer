@@ -80,6 +80,21 @@ public sealed class SdsOptions
     public List<string> ExtraOperatorGroups { get; set; } = [];
 
     /// <summary>
+    /// Allow management sign-in with a Windows user name and password (POST /api/auth/login),
+    /// for browsers that do not send Windows credentials. Windows sign-in keeps working either way.
+    /// </summary>
+    public bool PasswordSignIn { get; set; } = true;
+
+    /// <summary>
+    /// Accept password sign-in over plain HTTP from other machines. Off by default: passwords and
+    /// session cookies would cross the network unencrypted. Loopback requests are always accepted.
+    /// </summary>
+    public bool AllowPasswordSignInOverHttp { get; set; }
+
+    /// <summary>Idle minutes before a password session ends (sliding).</summary>
+    public int SessionMinutes { get; set; } = 480;
+
+    /// <summary>
     /// Host name used to build UNC paths returned to clients. Empty uses the machine DNS name.
     /// </summary>
     public string? PublicServerName { get; set; }

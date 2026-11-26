@@ -66,8 +66,17 @@ public sealed class ClientController(
     /// </summary>
     [HttpGet("images")]
     [Authorize]
-    public Task<List<ClientImageDto>> Images([FromQuery] string? architecture, [FromQuery] string? group, CancellationToken ct) =>
-        images.ListForClientAsync(User.Identity as WindowsIdentity, Identifiers.NormalizeArchitecture(architecture), group, ct);
+    public Task<List<ClientImageDto>> Images([FromQuery] string? architecture, [FromQuery] string? group, CancellationToken ct)
+    {
+        // The user filter impersonates the caller's Windows token. A password session has no
+        // token, and listing without the filter would show images the user may not read.
+        if (User.Identity?.AuthenticationType == Security.SdsAuth.PasswordScheme)
+        {
+            throw new UnauthorizedAccessException("The client image list is filtered by the caller's Windows token and needs Windows sign-in; password sessions cannot use it.");
+        }
+
+        return images.ListForClientAsync(User.Identity as WindowsIdentity, Identifiers.NormalizeArchitecture(architecture), group, ct);
+    }
 
     /// <summary>
     /// Generates a computer name with the naming policy for the authenticated user (used by

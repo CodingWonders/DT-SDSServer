@@ -4,7 +4,7 @@ The DISMTools System Deployment Services (SDS) server exposes a REST API over HT
 
 The API has two audiences:
 
-- **Management clients** (consoles, scripts, automation) manage images, drivers, computers and server policy. They authenticate with Windows credentials.
+- **Management clients** (consoles, scripts, automation) manage images, drivers, computers and server policy. They authenticate with Windows credentials, or, for browsers, with a Windows user name and password that opens a session.
 - **Deployment clients** (the program that runs in the SDS boot image on a machine being deployed) register, wait for approval, list images, ask for drivers and send logs. Several of these calls are anonymous, as in WDS.
 
 ## Guides
@@ -49,7 +49,10 @@ Role: **Admin** = `SdsAdmin` policy, **Reader** = `SdsReader` policy, **User** =
 
 | Method | Path | Role | Summary |
 |---|---|---|---|
-| GET | `/api/auth/me` | User | Signed in account and its SDS role |
+| GET | `/api/auth/me` | User | Signed in account, its SDS role and sign-in method |
+| POST | `/api/auth/login` | Anonymous | Password sign-in (session cookie) |
+| GET | `/api/auth/session` | Anonymous | Current password session |
+| POST | `/api/auth/logout` | Anonymous | End the password session |
 | GET | `/api/server` | Reader | Server status and statistics |
 | GET | `/api/server/settings` | Reader | Server policy settings |
 | PUT | `/api/server/settings` | Admin | Replace server policy settings |

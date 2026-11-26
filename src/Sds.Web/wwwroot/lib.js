@@ -23,10 +23,13 @@ export class ApiError extends Error {
 /**
  * Calls the API. Objects are sent as JSON, strings as text (contentType defaults to
  * text/plain). Returns parsed JSON, text for non JSON answers, or null for 204.
- * Credentials are always included so the browser performs Windows Negotiate sign in.
+ * Credentials are always included so the browser sends the password session cookie or
+ * performs Windows Negotiate sign in.
  */
 export async function api(method, path, { body, contentType, text = false } = {}) {
-  const headers = {};
+  // The custom header proves the call comes from a page the API's CORS policy allows; the
+  // server requires it for writes made with a password session cookie (CSRF guard).
+  const headers = { 'X-SDS-Request': '1' };
   let payload;
   if (body !== undefined && body !== null) {
     if (typeof body === 'string' || body instanceof Blob) {
@@ -80,10 +83,12 @@ async function toApiError(response) {
   }
 
   if (response.status === 401) {
-    return new ApiError(401, 'Not signed in (401). The browser did not send Windows credentials to the SDS server.', problem);
+    // Lets the console return to the sign-in screen when a session ends.
+    window.dispatchEvent(new CustomEvent('sds:unauthorized'));
+    return new ApiError(401, problem?.detail || 'Not signed in (401). Sign in again.', problem);
   }
   if (response.status === 403) {
-    return new ApiError(403, 'Access denied (403). This needs membership of Administrators or SDS Administrators (SDS Operators for read only).', problem);
+    return new ApiError(403, problem?.detail || 'Access denied (403). This needs membership of Administrators or SDS Administrators (SDS Operators for read only).', problem);
   }
 
   let message = `${response.status} ${response.statusText}`;
@@ -123,6 +128,7 @@ export function upload(file, onProgress) {
     xhr.open('POST', `${API}/api/uploads${query({ fileName: file.name })}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.setRequestHeader('X-SDS-Request', '1');
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));

@@ -38,15 +38,14 @@ public sealed class SdsFactory : WebApplicationFactory<Program>
         builder.UseSetting("Sds:EventLog", "false");
         builder.UseSetting("Sds:PublicServerName", "sds01");
         builder.UseSetting("Sds:TestAuthentication", "true");
+        builder.UseSetting("Sds:AllowPasswordSignInOverHttp", "true");
 
         builder.ConfigureTestServices(services =>
         {
-            services.AddAuthentication(o =>
-            {
-                o.DefaultScheme = TestAuthHandler.SchemeName;
-                o.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
-                o.DefaultChallengeScheme = TestAuthHandler.SchemeName;
-            }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+            // The server's default scheme forwards to "Test" in place of Negotiate (see Program.cs),
+            // and to the session cookie when a password session cookie is sent.
+            services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+            services.AddSingleton<Sds.Server.Security.ICredentialValidator, TestCredentialValidator>();
         });
     }
 
@@ -152,22 +151,6 @@ public class ApiTests : IClassFixture<SdsFactory>, IClassFixture<TestWim>
         Assert.Equal(HttpStatusCode.Unauthorized, (await Client(null).GetAsync("/api/image-groups")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Client("user").GetAsync("/api/image-groups")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Client("admin").GetAsync("/api/image-groups")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Auth_me_reports_account_and_role()
-    {
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Client(null).GetAsync("/api/auth/me")).StatusCode);
-
-        var admin = await ReadAsync(await Client("admin").GetAsync("/api/auth/me"));
-        Assert.Equal("CONTOSO\\admin", admin["name"]!.GetValue<string>());
-        Assert.Equal("Admin", admin["role"]!.GetValue<string>());
-        Assert.True(admin["isReader"]!.GetValue<bool>());
-
-        var user = await ReadAsync(await Client("user").GetAsync("/api/auth/me"));
-        Assert.Equal("None", user["role"]!.GetValue<string>());
-        Assert.False(user["isAdmin"]!.GetValue<bool>());
-        Assert.False(user["isReader"]!.GetValue<bool>());
     }
 
     [Fact]

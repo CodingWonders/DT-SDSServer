@@ -12,7 +12,9 @@
 
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.Negotiate;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Sds.Core;
 using Sds.Server.Infrastructure;
 using Sds.Server.Security;
@@ -56,12 +58,42 @@ builder.Services.AddSingleton<UploadStore>();
 // ---------------------------------------------------------------------
 // Section 3: security
 // ---------------------------------------------------------------------
+// Two ways in: Windows Negotiate, and password sessions (POST /api/auth/login checks a Windows
+// user name and password and issues a cookie). The default scheme forwards each request to
+// one of them: the cookie when present and no Authorization header is sent, else Negotiate.
 // Negotiate inspects every request and needs Kestrel connection features, so the in memory
-// test server replaces it with its own scheme (Sds:TestAuthentication, never set in production).
-if (!builder.Configuration.GetValue<bool>("Sds:TestAuthentication"))
+// test server registers its own "Test" scheme instead (Sds:TestAuthentication, never set in
+// production).
+var testAuthentication = builder.Configuration.GetValue<bool>("Sds:TestAuthentication");
+var windowsScheme = testAuthentication ? "Test" : NegotiateDefaults.AuthenticationScheme;
+var sessionMinutes = builder.Configuration.GetValue("Sds:SessionMinutes", new SdsOptions().SessionMinutes);
+var authentication = builder.Services.AddAuthentication(SdsAuth.Scheme)
+    .AddPolicyScheme(SdsAuth.Scheme, "Windows or password session", o => o.ForwardDefaultSelector = ctx => SdsAuth.Select(ctx, windowsScheme))
+    .AddCookie(SdsAuth.PasswordScheme, o => SdsAuth.ConfigureCookie(o, sessionMinutes));
+if (!testAuthentication)
 {
-    builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
+    authentication.AddNegotiate();
 }
+builder.Services.AddSingleton<ICredentialValidator, WindowsCredentialValidator>();
+
+// Password guessing brake: at most 10 sign-in attempts per client address every 5 minutes
+// (Windows account lockout policy applies on top).
+builder.Services.AddRateLimiter(o =>
+{
+    o.AddPolicy(SdsAuth.LoginRateLimit, ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+    o.OnRejected = async (ctx, ct) =>
+    {
+        ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await ctx.HttpContext.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Too many sign-in attempts",
+            Detail = "Too many sign-in attempts from this address. Wait a few minutes and try again.",
+        }, ct);
+    };
+});
 builder.Services.AddSingleton<IAuthorizationHandler, SdsRoleHandler>();
 builder.Services.AddAuthorization(o =>
 {
@@ -106,12 +138,30 @@ app.UseStatusCodePages();
 // CORS runs before authentication so that preflight (OPTIONS) requests, which browsers send
 // without credentials, are answered instead of being challenged with 401 Negotiate.
 app.UseCors();
+
+// Over HTTPS the session cookie becomes SameSite=None; Secure, so a console served from another
+// host (another site) still gets it on its cross origin calls. Over HTTP it stays Lax.
+app.UseCookiePolicy(new CookiePolicyOptions
+{
+    OnAppendCookie = c => SecureOverHttps(c.Context, c.CookieOptions),
+    OnDeleteCookie = c => SecureOverHttps(c.Context, c.CookieOptions),
+});
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapOpenApi().AllowAnonymous();
 
 app.Run();
+
+static void SecureOverHttps(HttpContext context, CookieOptions cookie)
+{
+    if (context.Request.IsHttps)
+    {
+        cookie.SameSite = SameSiteMode.None;
+        cookie.Secure = true;
+    }
+}
 
 /// <summary>Entry point type, exposed for integration tests (WebApplicationFactory).</summary>
 public partial class Program;

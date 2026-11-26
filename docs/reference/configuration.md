@@ -38,10 +38,33 @@ Any value can also be set with environment variables (`Sds__Volume=E:`) or comma
 | `PublicServerName` | machine DNS name | Host name used in the UNC paths returned by the API |
 | `EventLog` | true | Write warnings and errors to the Windows Event Log (source `SDS`) |
 | `CorsOrigins` | `["http://localhost:8351"]` | Browser origins allowed to call the API with credentials |
+| `PasswordSignIn` | true | Allow sign-in with a Windows user name and password (`POST /api/auth/login`). See [Password sign-in](../authentication.md#password-sign-in). |
+| `AllowPasswordSignInOverHttp` | false | Accept password sign-in over plain HTTP from other machines. Leave off: passwords would cross the network in clear text. Loopback is always accepted. |
+| `SessionMinutes` | 480 | Minutes without use before a password session ends |
 
 `BUILTIN\Administrators` always has the Admin role, whatever the configuration.
 
 The firewall rule allows inbound TCP on every port the server listens on from the network (`Urls`, `--urls`, `ASPNETCORE_URLS`, `Kestrel:Endpoints`), for all profiles. Loopback addresses such as `http://localhost:8350` need no rule and are skipped. A rule with the same name is left as it is, so you can narrow it (profiles, remote addresses); if its ports no longer match, the server logs a warning. Creating the rule needs administrator rights; without them the server logs a warning and starts anyway.
+
+## HTTPS
+
+Password sign-in needs HTTPS when the browser is on another machine. Add an HTTPS endpoint with a certificate the browsers trust, for example from the machine store:
+
+```json
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Http": { "Url": "http://*:8350" },
+      "Https": {
+        "Url": "https://*:8352",
+        "Certificate": { "Subject": "sds01.contoso.com", "Store": "My", "Location": "LocalMachine" }
+      }
+    }
+  }
+}
+```
+
+Then point the Web Console at it (`SdsApiUrl`: `https://sds01.contoso.com:8352`) and list the console's origin in `CorsOrigins`. The firewall rule covers every configured port.
 
 ## Active Directory
 

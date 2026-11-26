@@ -3,9 +3,11 @@
 //
 // Steps:
 //   1. Register the views (one module per area of the server).
-//   2. Sign in: the console starts on the sign-in screen and only opens for an account that
-//      GET /api/auth/me reports as Admin or Reader. The browser supplies the Windows
-//      credentials (Negotiate); the page never sees or stores a password.
+//   2. Sign in: the console starts on the sign-in screen and only opens for an account in the
+//      Admin or Reader role. Two ways: user name and password (POST /api/auth/login, which
+//      sets an HttpOnly session cookie; works in any browser), or Windows sign-in (the browser
+//      sends Windows credentials, GET /api/auth/me). A password session that is still valid
+//      is resumed on reload (GET /api/auth/session). The page never stores a password.
 //   3. Build the sidebar from the registry, grouped by area.
 //   4. Render the view named by location.hash, cleaning up the previous one (timers).
 //   5. Show who is signed in and which server we talk to; sign out returns to step 2.
@@ -53,21 +55,54 @@ function showSignIn(message, kind = 'error') {
   status.title = '';
   document.title = 'Sign in | SDS Console';
 
-  const button = h('button', { class: 'primary', type: 'button', onclick: () => signIn(button) }, 'Sign in with Windows');
+  // Password sign-in: works in any browser. The server checks the Windows account and issues
+  // an HttpOnly session cookie; the password is not kept by the page.
+  const userName = h('input', { type: 'text', name: 'username', autocomplete: 'username', placeholder: 'DOMAIN\\user', required: true });
+  const password = h('input', { type: 'password', name: 'password', autocomplete: 'current-password', required: true });
+  const submit = h('button', { class: 'primary', type: 'submit' }, 'Sign in');
+  const passwordForm = h('form', { class: 'signin-form', onsubmit: (e) => { e.preventDefault(); signInWithPassword(userName, password, submit); } },
+    h('label', { class: 'field' }, 'User name', userName),
+    h('label', { class: 'field' }, 'Password', password),
+    submit);
+
+  // Windows sign-in: the browser sends the Windows credentials it already has (Edge, Chrome,
+  // or Firefox once the server is in its trusted lists).
+  const windows = h('button', { type: 'button', class: 'signin-windows', onclick: () => signInWithWindows(windows) }, 'Sign in with Windows');
+
   signin.replaceChildren(h('div', { class: 'signin-card' },
     h('h1', {}, 'Sign in to SDS'),
     h('p', { class: 'lead' }, 'Use a Windows account that is a member of Administrators, SDS Administrators or SDS Operators on the SDS server.'),
     message ? h('div', { class: `signin-msg ${kind}`, role: 'alert' }, message) : null,
-    button,
+    passwordForm,
+    h('div', { class: 'signin-or' }, 'or'),
+    windows,
     h('p', { class: 'hint' },
-      `Server: ${API}. Your browser sends your Windows sign in; if it asks for credentials, enter an authorized account there. ` +
-      'If nothing is sent, add the server to the browser\'s intranet zone.')));
+      `Server: ${API}. For a domain account type DOMAIN\\user or user@domain; a bare name is a local account of the server. ` +
+      '"Sign in with Windows" uses the account you are signed in to Windows with, if your browser sends it.')));
   signin.hidden = false;
-  button.focus();
+  userName.focus();
 }
 
-/** Asks the server who the browser is signed in as and opens the console if authorized. */
-async function signIn(button) {
+/** Checks a user name and password with the server and opens the console if authorized. */
+async function signInWithPassword(userName, password, submit) {
+  submit.disabled = true;
+  submit.textContent = 'Signing in...';
+  try {
+    const me = await api('POST', '/api/auth/login', { body: { userName: userName.value.trim(), password: password.value } });
+    password.value = '';
+    openConsole(me);
+  } catch (e) {
+    const name = userName.value;
+    showSignIn(e.message || String(e));
+    // Keep the user name so only the password has to be typed again.
+    const again = signin.querySelector('input[name="username"]');
+    again.value = name;
+    signin.querySelector('input[name="password"]').focus();
+  }
+}
+
+/** Asks the server who the browser is signed in to Windows as and opens the console if authorized. */
+async function signInWithWindows(button) {
   button.disabled = true;
   button.textContent = 'Signing in...';
 
@@ -76,7 +111,7 @@ async function signIn(button) {
     me = await api('GET', '/api/auth/me');
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
-      showSignIn('Not signed in. The browser did not send Windows credentials to the SDS server.');
+      showSignIn('The browser did not send Windows credentials to the SDS server. Sign in with your user name and password instead.');
     } else {
       showSignIn(e.message || String(e));
     }
@@ -85,7 +120,7 @@ async function signIn(button) {
 
   if (!me || !me.isReader) {
     showSignIn(`Signed in as ${me?.name || 'an unknown account'}, but this account is not authorized to manage SDS. ` +
-      'Sign in to Windows with an authorized account, or ask an administrator to add this one to SDS Administrators or SDS Operators.');
+      'Sign in with an authorized account, or ask an administrator to add this one to SDS Administrators or SDS Operators.');
     return;
   }
 
@@ -93,14 +128,52 @@ async function signIn(button) {
 }
 
 /** Leaves the console and returns to the sign-in screen. */
-function signOut() {
+async function signOut() {
+  const method = currentUser?.method;
+  leaveConsole();
+  if (method === 'Password') {
+    try {
+      await api('POST', '/api/auth/logout');
+    } catch {
+      // The session cookie expires on its own; the sign-in screen is shown either way.
+    }
+    showSignIn('Signed out.', 'info');
+  } else {
+    // Windows credentials belong to the browser session; the page cannot discard them.
+    showSignIn('Signed out. Close the browser to end the Windows session as well.', 'info');
+  }
+}
+
+/** Stops the current view and clears the console. */
+function leaveConsole() {
   if (typeof cleanup === 'function') {
     cleanup();
   }
   cleanup = null;
+  currentUser = null;
   content.replaceChildren();
-  // The Windows credentials belong to the browser session; the page cannot discard them.
-  showSignIn('Signed out. Close the browser to end the Windows session as well.', 'info');
+}
+
+// A 401 while signed in means the session ended (expired, or the server restarted with new keys).
+window.addEventListener('sds:unauthorized', () => {
+  if (currentUser) {
+    leaveConsole();
+    showSignIn('Your session has ended. Sign in again.', 'info');
+  }
+});
+
+/** Resumes a password session that is still valid (for example after a page reload). */
+async function resumeSession() {
+  try {
+    const session = await api('GET', '/api/auth/session');
+    if (session?.signedIn && session.isReader) {
+      openConsole(session);
+      return;
+    }
+  } catch {
+    // Server unreachable: the sign-in screen reports it on the first attempt.
+  }
+  showSignIn();
 }
 
 // ---------------------------------------------------------------------------------------
@@ -183,4 +256,4 @@ async function checkConnection() {
   }
 }
 
-showSignIn();
+resumeSession();

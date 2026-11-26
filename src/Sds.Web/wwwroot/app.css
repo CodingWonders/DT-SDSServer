@@ -79,7 +79,12 @@ code, pre, .mono { font-family: Consolas, "Cascadia Mono", ui-monospace, monospa
   width: min(440px, 100%); background: var(--panel); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
 }
-.signin-card button.primary { width: 100%; padding: 9px 12px; margin: 4px 0 12px; }
+.signin-form { display: flex; flex-direction: column; gap: 10px; }
+.signin-form input { width: 100%; padding: 7px 9px; }
+.signin-card button.primary, .signin-card button.signin-windows { width: 100%; padding: 9px 12px; }
+.signin-card button.signin-windows { margin-bottom: 12px; }
+.signin-or { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: var(--muted); font-size: 12.5px; }
+.signin-or::before, .signin-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
 .signin-msg { border: 1px solid var(--border); border-left: 4px solid var(--danger); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; white-space: pre-wrap; }
 .signin-msg.info { border-left-color: var(--accent); }
 
