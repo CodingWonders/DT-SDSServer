@@ -18,4 +18,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Sds.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Creates the self-signed HTTPS certificate; ships next to SdsServer.exe. -->
+    <None Include="..\..\scripts\New-SdsCertificate.ps1" Link="New-SdsCertificate.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

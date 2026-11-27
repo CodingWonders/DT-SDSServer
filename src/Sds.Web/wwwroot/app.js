@@ -8,11 +8,13 @@
 //      sets an HttpOnly session cookie; works in any browser), or Windows sign-in (the browser
 //      sends Windows credentials, GET /api/auth/me). A password session that is still valid
 //      is resumed on reload (GET /api/auth/session). The page never stores a password.
+//      Before that, a browser that has not accepted the API's self-signed certificate yet is
+//      sent to accept it and comes straight back (ensureApiTrusted in lib.js).
 //   3. Build the sidebar from the registry, grouped by area.
 //   4. Render the view named by location.hash, cleaning up the previous one (timers).
 //   5. Show who is signed in and which server we talk to; sign out returns to step 2.
 
-import { API, ApiError, api, h } from './lib.js';
+import { API, ApiError, api, ensureApiTrusted, h } from './lib.js';
 import { overviewView, settingsView, multicastView, jobsView, clientLogsView } from './views-server.js';
 import { imageGroupsView, imagesView } from './views-images.js';
 import { driversView, driverGroupsView } from './views-drivers.js';
@@ -162,8 +164,13 @@ window.addEventListener('sds:unauthorized', () => {
   }
 });
 
-/** Resumes a password session that is still valid (for example after a page reload). */
+/**
+ * Resumes a password session that is still valid (for example after a page reload). First,
+ * when the API uses a certificate this browser has not accepted yet, the browser is sent to
+ * accept it and comes back here (ensureApiTrusted).
+ */
 async function resumeSession() {
+  await ensureApiTrusted();
   try {
     const session = await api('GET', '/api/auth/session');
     if (session?.signedIn && session.isReader) {

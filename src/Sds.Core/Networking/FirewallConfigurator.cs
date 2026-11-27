@@ -6,8 +6,9 @@ namespace Sds.Core.Networking;
 
 /// <summary>
 /// Creates the inbound Windows Firewall rule for the API ports when it is missing, the way
-/// the WDS role adds its own rules on installation. An existing rule is never modified, so an
-/// administrator can narrow it (profiles, remote addresses) without SDS undoing the change.
+/// the WDS role adds its own rules on installation. An existing rule only gets its ports
+/// updated, and only when SDS created it, so an administrator can narrow it (profiles, remote
+/// addresses) without SDS undoing the change.
 /// </summary>
 public sealed class FirewallConfigurator(IConfiguration configuration, IOptions<SdsOptions> options, ILogger<FirewallConfigurator> logger)
 {

@@ -50,6 +50,10 @@ builder.Services.AddSerilog((services, logger) =>
     }
 });
 
+// HTTPS on Sds:HttpsPort as soon as the certificate from New-SdsCertificate.ps1 is installed.
+// Must run before Build (it adds Kestrel endpoints); its outcome is logged after Build.
+var httpsStatus = AutomaticHttps.Configure(builder);
+
 // ---------------------------------------------------------------------
 // Section 2: SDS core
 // ---------------------------------------------------------------------
@@ -121,13 +125,15 @@ builder.Services.AddOpenApi();
 // cross origin with Windows credentials. Allowed: the origins listed in Sds:CorsOrigins, and
 // the console on this machine (port Sds:ConsolePort) under whatever host name the browser
 // used. Credentials require explicit origins (no wildcard). See SdsCorsPolicyProvider.
-builder.Services.AddSingleton<ICorsPolicyProvider, SdsCorsPolicyProvider>();
+builder.Services.AddSingleton<SdsCorsPolicyProvider>();
+builder.Services.AddSingleton<ICorsPolicyProvider>(services => services.GetRequiredService<SdsCorsPolicyProvider>());
 builder.Services.AddCors();
 
 // WIM files are large: lift the request size limit (individual endpoints may still restrict).
 builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = null);
 
 var app = builder.Build();
+app.Logger.LogInformation("{HttpsStatus}", httpsStatus);
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();

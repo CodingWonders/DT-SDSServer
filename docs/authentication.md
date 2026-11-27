@@ -125,6 +125,12 @@ UNC paths returned by the API (for example `\\<host>\images\<Group>\install.wim`
 
 ## CORS
 
-Browser front ends on another origin (such as the Web Console on port `8351`) call the API cross origin with credentials. Only origins listed in `Sds:CorsOrigins` are allowed; wildcards are not possible with credentials. All methods and headers are allowed and the `Location` and `Content-Disposition` headers are exposed.
+Browser front ends on another origin (such as the Web Console on port `8351`) call the API cross origin with credentials. Allowed are the origins listed in `Sds:CorsOrigins`, and the Web Console on the API's own machine (port `Sds:ConsolePort`, 8351) under whatever host name the browser used to reach the API; wildcards are not possible with credentials. All methods and headers are allowed and the `Location` and `Content-Disposition` headers are exposed.
 
 CORS runs before authentication, so preflight `OPTIONS` requests (which browsers send without credentials) are answered instead of being challenged.
+
+## Accepting a self-signed certificate
+
+`GET /api/trust?return=<url>` (anonymous) redirects (`302`) to `return` when that page's origin is allowed by the CORS rules above, and answers `400` otherwise, so it cannot be used as an open redirect. Without `return` it answers `204`.
+
+It exists because a page cannot show the browser's certificate prompt for its API calls: with a self-signed certificate those calls simply fail. The Web Console calls `/api/trust` when its sign-in page loads; when that fails over HTTPS, it navigates the browser to `/api/trust?return=<sign-in page>`, the browser shows its certificate warning for the API, and once accepted the browser lands back on the sign-in page. It does this at most once a minute per tab, so an API that is down shows the usual error instead of a redirect loop.

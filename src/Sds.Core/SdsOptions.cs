@@ -45,7 +45,7 @@ public sealed class SdsOptions
 
     /// <summary>
     /// Create the inbound Windows Firewall rule for the API port(s) at startup when it does not
-    /// exist. An existing rule is never modified.
+    /// exist. An existing rule only gets its ports updated, and only when SDS created it.
     /// </summary>
     public bool CreateFirewallRule { get; set; } = true;
 
@@ -93,6 +93,19 @@ public sealed class SdsOptions
 
     /// <summary>Idle minutes before a password session ends (sliding).</summary>
     public int SessionMinutes { get; set; } = 480;
+
+    /// <summary>
+    /// Port of the HTTPS endpoint the server adds by itself when the certificate
+    /// <see cref="HttpsCertificateSubject"/> is installed (see New-SdsCertificate.ps1).
+    /// 0 turns it off. Ignored when Kestrel:Endpoints is configured.
+    /// </summary>
+    public int HttpsPort { get; set; } = 8352;
+
+    /// <summary>
+    /// Common name of the certificate used for the automatic HTTPS endpoint, looked up in
+    /// LocalMachine\My, then CurrentUser\My.
+    /// </summary>
+    public string HttpsCertificateSubject { get; set; } = "SDS Server HTTPS";
 
     /// <summary>
     /// Host name used to build UNC paths returned to clients. Empty uses the machine DNS name.

@@ -17,9 +17,13 @@ internal static class FirewallRules
     private const int ActionAllow = 1;
     private const int AllProfiles = 0x7FFFFFFF;
 
+    /// <summary>Firewall rule group of the rules SDS creates; only those are ever updated.</summary>
+    private const string Grouping = "DISMTools System Deployment Services";
+
     /// <summary>
     /// Ensures an inbound TCP allow rule named <paramref name="name"/> exists for the ports this
-    /// process listens on from the network. An existing rule is never modified. Failures are
+    /// process listens on from the network. An existing rule created by SDS gets its ports
+    /// updated; other settings, and rules SDS did not create, are never changed. Failures are
     /// logged, never thrown.
     /// </summary>
     public static void EnsureForListenPorts(IConfiguration configuration, string name, string description, ILogger logger)
@@ -73,9 +77,17 @@ internal static class FirewallRules
             {
                 logger.LogWarning("Firewall rule {Rule} already exists but is disabled or is not an inbound allow rule. The rule was not changed; fix or delete it and restart.", name);
             }
+            else if (!SamePorts(existingPorts, ports) && string.Equals((string?)existing.Grouping, Grouping, StringComparison.Ordinal))
+            {
+                // A rule SDS created: follow the ports (for example the HTTPS port added once
+                // the certificate is installed). Profiles and remote addresses an administrator
+                // narrowed are kept.
+                existing.LocalPorts = ports;
+                logger.LogInformation("Firewall rule {Rule} updated from port(s) {Existing} to {Ports}", name, existingPorts, ports);
+            }
             else if (!SamePorts(existingPorts, ports))
             {
-                logger.LogWarning("Firewall rule {Rule} already exists with port(s) {Existing}, but this process listens on {Ports}. The rule was not changed; fix or delete it and restart.", name, existingPorts, ports);
+                logger.LogWarning("Firewall rule {Rule} already exists with port(s) {Existing}, but this process listens on {Ports}. The rule was not changed because SDS did not create it; fix or delete it and restart.", name, existingPorts, ports);
             }
             else
             {
@@ -90,7 +102,7 @@ internal static class FirewallRules
         dynamic rule = Activator.CreateInstance(ruleType)!;
         rule.Name = name;
         rule.Description = description;
-        rule.Grouping = "DISMTools System Deployment Services";
+        rule.Grouping = Grouping;
         rule.Protocol = ProtocolTcp;
         rule.LocalPorts = ports;
         rule.Direction = DirectionInbound;

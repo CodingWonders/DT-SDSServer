@@ -18,5 +18,6 @@
     <!-- Shared with the server without referencing Sds.Core (which pulls in EF Core, WIM
          interop and the rest): the console creates its own firewall rule the same way. -->
     <Compile Include="..\Sds.Core\Networking\FirewallRules.cs" Link="Networking\FirewallRules.cs" />
+    <Compile Include="..\Sds.Core\Networking\SdsCertificate.cs" Link="Networking\SdsCertificate.cs" />
   </ItemGroup>
 </Project>

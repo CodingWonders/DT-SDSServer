@@ -340,3 +340,166 @@ public class ConsoleCorsTests
     public void Port_zero_turns_it_off() =>
         Assert.False(Allowed("http://192.168.1.229:8351", "192.168.1.229:8350", consolePort: 0));
 }
+
+/// <summary>The provider wired into the real CORS service, as the middleware uses it.</summary>
+public class ConsoleCorsPreflightTests
+{
+    [Theory]
+    [InlineData("http://192.168.1.229:8351", "192.168.1.229:8350", true)]
+    [InlineData("http://localhost:8351", "localhost:8350", true)]
+    [InlineData("http://evil.example:8351", "192.168.1.229:8350", false)]
+    public async Task Preflight_from_console_origin(string origin, string apiHost, bool allowed)
+    {
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var provider = new Sds.Server.Infrastructure.SdsCorsPolicyProvider(configuration);
+
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        context.Request.Method = "OPTIONS";
+        context.Request.Host = new Microsoft.AspNetCore.Http.HostString(apiHost);
+        context.Request.Headers.Origin = origin;
+        context.Request.Headers.AccessControlRequestMethod = "POST";
+        context.Request.Headers.AccessControlRequestHeaders = "content-type,x-sds-request";
+
+        var policy = await provider.GetPolicyAsync(context, null);
+        var service = new Microsoft.AspNetCore.Cors.Infrastructure.CorsService(
+            Microsoft.Extensions.Options.Options.Create(new Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+        var result = service.EvaluatePolicy(context, policy!);
+
+        Assert.Equal(allowed, result.IsOriginAllowed);
+    }
+}
+
+/// <summary>The HTTPS endpoint the server adds by itself when its certificate is installed.</summary>
+public class AutomaticHttpsTests
+{
+    private static System.Security.Cryptography.X509Certificates.X509Certificate2 NewCertificate()
+    {
+        using var key = System.Security.Cryptography.RSA.Create(2048);
+        var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+            "CN=SDS Server HTTPS", key, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        return request.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(1));
+    }
+
+    private static (string Status, Microsoft.Extensions.Configuration.ConfigurationManager Config, System.Security.Authentication.SslProtocols? Protocols, string? Subject) Run(
+        bool certificateInstalled, params (string Key, string Value)[] settings)
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(config,
+            settings.Select(s => new KeyValuePair<string, string?>(s.Key, s.Value)));
+
+        string? askedSubject = null;
+        System.Security.Authentication.SslProtocols? protocols = null;
+        var status = Sds.Server.Infrastructure.AutomaticHttps.Configure(
+            config,
+            subject =>
+            {
+                askedSubject = subject;
+                return certificateInstalled ? (NewCertificate(), System.Security.Cryptography.X509Certificates.StoreLocation.CurrentUser) : null;
+            },
+            (_, p) => protocols = p);
+        return (status, config, protocols, askedSubject);
+    }
+
+    [Fact]
+    public void Adds_https_next_to_every_http_address()
+    {
+        var (status, config, protocols, subject) = Run(true, ("urls", "http://*:8350;http://localhost:9000"));
+
+        Assert.StartsWith("HTTPS is on: port 8352", status);
+        Assert.Equal("SDS Server HTTPS", subject);
+        Assert.Equal("http://*:8350", config["Kestrel:Endpoints:Http0:Url"]);
+        Assert.Equal("http://localhost:9000", config["Kestrel:Endpoints:Http1:Url"]);
+        Assert.Equal("https://*:8352", config["Kestrel:Endpoints:AutoHttps:Url"]);
+        Assert.Equal(System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13, protocols);
+        // The firewall rule follows the same settings.
+        Assert.Equal([8350, 8352], Sds.Core.Networking.FirewallConfigurator.GetListenPorts(config));
+    }
+
+    [Fact]
+    public void Uses_configured_port_and_subject() =>
+        Assert.Equal(("https://*:9443", "Lab cert"), Run(true, ("urls", "http://*:8350"), ("Sds:HttpsPort", "9443"), ("Sds:HttpsCertificateSubject", "Lab cert"))
+            is var r ? (r.Config["Kestrel:Endpoints:AutoHttps:Url"], r.Subject) : default);
+
+    [Fact]
+    public void Without_certificate_nothing_changes()
+    {
+        var (status, config, protocols, _) = Run(false, ("urls", "http://*:8350"));
+        Assert.StartsWith("HTTPS is off", status);
+        Assert.Empty(config.GetSection("Kestrel:Endpoints").GetChildren());
+        Assert.Null(protocols);
+    }
+
+    [Fact]
+    public void Own_kestrel_endpoints_win()
+    {
+        var (status, config, protocols, subject) = Run(true, ("Kestrel:Endpoints:Mine:Url", "https://*:443"));
+        Assert.Contains("Kestrel:Endpoints is configured", status);
+        Assert.Single(config.GetSection("Kestrel:Endpoints").GetChildren());
+        Assert.Null(protocols);
+        Assert.Null(subject);
+    }
+
+    [Fact]
+    public void Port_zero_turns_it_off()
+    {
+        var (status, _, protocols, subject) = Run(true, ("Sds:HttpsPort", "0"));
+        Assert.Contains("turned off", status);
+        Assert.Null(protocols);
+        Assert.Null(subject);
+    }
+}
+
+/// <summary>GET /api/trust: back to the console after the certificate is accepted, never elsewhere.</summary>
+public class TrustRedirectTests
+{
+    private static Microsoft.AspNetCore.Mvc.IActionResult Get(string? returnUrl, string apiHost = "192.168.1.229:8352", params (string Key, string Value)[] settings)
+    {
+        var configuration = Microsoft.Extensions.Configuration.MemoryConfigurationBuilderExtensions.AddInMemoryCollection(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder(),
+                settings.Select(s => new KeyValuePair<string, string?>(s.Key, s.Value)))
+            .Build();
+        var controller = new Sds.Server.Controllers.TrustController(new Sds.Server.Infrastructure.SdsCorsPolicyProvider(configuration))
+        {
+            ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() },
+            ProblemDetailsFactory = new TestProblemDetailsFactory(),
+        };
+        controller.HttpContext.Request.Host = new Microsoft.AspNetCore.Http.HostString(apiHost);
+        return controller.Get(returnUrl);
+    }
+
+    [Theory]
+    [InlineData("http://192.168.1.229:8351/")]
+    [InlineData("http://192.168.1.229:8351/#images")]
+    [InlineData("http://192.168.1.229:8351/index.html?x=1")]
+    public void Redirects_back_to_the_console_on_the_api_host(string returnUrl) =>
+        Assert.Equal(new Uri(returnUrl).AbsoluteUri, Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectResult>(Get(returnUrl)).Url);
+
+    [Fact]
+    public void Redirects_to_a_listed_origin() =>
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectResult>(
+            Get("https://sdsconsole.contoso.com/", "sds01:8352", ("Sds:CorsOrigins:0", "https://sdsconsole.contoso.com")));
+
+    [Theory]
+    [InlineData("https://evil.example/")]
+    [InlineData("http://192.168.1.229:9999/")]
+    [InlineData("http://user@192.168.1.229:8351/")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("//evil.example/")]
+    [InlineData("/relative")]
+    public void Refuses_other_addresses(string returnUrl) =>
+        Assert.Equal(400, Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(Get(returnUrl)).StatusCode);
+
+    [Fact]
+    public void Without_return_answers_no_content() =>
+        Assert.IsType<Microsoft.AspNetCore.Mvc.NoContentResult>(Get(null));
+
+    private sealed class TestProblemDetailsFactory : Microsoft.AspNetCore.Mvc.Infrastructure.ProblemDetailsFactory
+    {
+        public override Microsoft.AspNetCore.Mvc.ProblemDetails CreateProblemDetails(Microsoft.AspNetCore.Http.HttpContext httpContext, int? statusCode = null, string? title = null, string? type = null, string? detail = null, string? instance = null) =>
+            new() { Status = statusCode, Title = title, Detail = detail };
+
+        public override Microsoft.AspNetCore.Mvc.ValidationProblemDetails CreateValidationProblemDetails(Microsoft.AspNetCore.Http.HttpContext httpContext, Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelStateDictionary, int? statusCode = null, string? title = null, string? type = null, string? detail = null, string? instance = null) =>
+            new(modelStateDictionary) { Status = statusCode };
+    }
+}

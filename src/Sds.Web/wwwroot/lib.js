@@ -11,6 +11,58 @@
 /** Base address of the SDS REST API, provided by /config.js (no trailing slash). */
 export const API = String(window.SDS_API || 'http://localhost:8350').replace(/\/+$/, '');
 
+/** sessionStorage key: when the page last sent the browser to accept the API certificate. */
+const TRUST_KEY = 'sds.trustAttempt';
+/** Do not send the browser again within this time, so an API that is down cannot cause a loop. */
+const TRUST_RETRY_MS = 60_000;
+
+function readTrustAttempt() {
+  try { return Number(sessionStorage.getItem(TRUST_KEY)) || 0; } catch { return 0; }
+}
+
+function writeTrustAttempt(value) {
+  try {
+    if (value) { sessionStorage.setItem(TRUST_KEY, String(value)); } else { sessionStorage.removeItem(TRUST_KEY); }
+  } catch {
+    // Storage blocked (private mode): the retry limit then only lasts for this page load.
+  }
+}
+
+/**
+ * Makes sure the browser accepts the API's certificate, before the sign-in page talks to it.
+ *
+ * With a self-signed certificate on the API (HTTPS), fetch() fails without any prompt until the
+ * browser has accepted that certificate, and a page cannot open the prompt for a fetch. So when
+ * the API cannot be reached over HTTPS, the browser is sent to the API's /api/trust address as
+ * an ordinary page visit: it shows its certificate warning there, and once the user accepts,
+ * the API sends the browser straight back to this page. Over HTTP, or when the API answers,
+ * nothing happens. If the API still cannot be reached after one round trip within a minute
+ * (server down, firewall), the page stays put and the sign-in screen reports the error.
+ */
+export async function ensureApiTrusted() {
+  if (!API.startsWith('https:')) {
+    return;
+  }
+
+  try {
+    await fetch(`${API}/api/trust`, { credentials: 'omit' });
+    writeTrustAttempt(0);
+    return;
+  } catch {
+    // Untrusted certificate, or the API is unreachable: the browser does not say which.
+  }
+
+  const now = Date.now();
+  if (now - readTrustAttempt() < TRUST_RETRY_MS) {
+    return;
+  }
+
+  writeTrustAttempt(now);
+  location.replace(`${API}/api/trust?return=${encodeURIComponent(location.href)}`);
+  // Navigation is under way; keep the caller waiting instead of rendering the sign-in screen.
+  await new Promise(() => {});
+}
+
 /** Error raised for a failed API call; message is ready to show to the user. */
 export class ApiError extends Error {
   constructor(status, message, problem) {
