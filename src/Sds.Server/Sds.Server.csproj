@@ -15,4 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sds.Core\Sds.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sds.Tests" />
+  </ItemGroup>
 </Project>

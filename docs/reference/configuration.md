@@ -37,7 +37,8 @@ Any value can also be set with environment variables (`Sds__Volume=E:`) or comma
 | `ExtraOperatorGroups` | `[]` | More groups (names or SIDs) with the Reader role |
 | `PublicServerName` | machine DNS name | Host name used in the UNC paths returned by the API |
 | `EventLog` | true | Write warnings and errors to the Windows Event Log (source `SDS`) |
-| `CorsOrigins` | `["http://localhost:8351"]` | Browser origins allowed to call the API with credentials |
+| `CorsOrigins` | `["http://localhost:8351"]` | More browser origins allowed to call the API with credentials (the console on this machine is always allowed, see `ConsolePort`) |
+| `ConsolePort` | 8351 | Port of the Web Console when it runs on the same machine. Its origin is allowed under whatever host name the browser used to reach the API (localhost, IP address, machine name). 0 turns this off. |
 | `PasswordSignIn` | true | Allow sign-in with a Windows user name and password (`POST /api/auth/login`). See [Password sign-in](../authentication.md#password-sign-in). |
 | `AllowPasswordSignInOverHttp` | false | Accept password sign-in over plain HTTP from other machines. Leave off: passwords would cross the network in clear text. Loopback is always accepted. |
 | `SessionMinutes` | 480 | Minutes without use before a password session ends |

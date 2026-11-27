@@ -310,3 +310,33 @@ public class FirewallPortTests
     [Fact]
     public void No_configuration_means_no_rule() => Assert.Empty(Ports());
 }
+
+/// <summary>CORS for the Web Console served from the API's own machine.</summary>
+public class ConsoleCorsTests
+{
+    private static bool Allowed(string origin, string apiHost, int consolePort = 8351) =>
+        Sds.Server.Infrastructure.SdsCorsPolicyProvider.IsConsoleOnApiHost(origin, new Microsoft.AspNetCore.Http.HostString(apiHost), consolePort);
+
+    [Theory]
+    [InlineData("http://192.168.1.229:8351", "192.168.1.229:8350")]
+    [InlineData("http://localhost:8351", "localhost:8350")]
+    [InlineData("http://SDS01:8351", "sds01:8350")]
+    [InlineData("https://sds01.contoso.com:8351", "sds01.contoso.com:8352")]
+    [InlineData("http://[fe80::1]:8351", "[fe80::1]:8350")]
+    public void Allows_console_on_the_host_the_browser_used(string origin, string apiHost) =>
+        Assert.True(Allowed(origin, apiHost));
+
+    [Theory]
+    [InlineData("http://evil.example:8351", "192.168.1.229:8350")]
+    [InlineData("http://192.168.1.229:8080", "192.168.1.229:8350")]
+    [InlineData("http://192.168.1.229", "192.168.1.229:8350")]
+    [InlineData("file://192.168.1.229:8351", "192.168.1.229:8350")]
+    [InlineData("null", "192.168.1.229:8350")]
+    [InlineData("", "192.168.1.229:8350")]
+    public void Refuses_other_origins(string origin, string apiHost) =>
+        Assert.False(Allowed(origin, apiHost));
+
+    [Fact]
+    public void Port_zero_turns_it_off() =>
+        Assert.False(Allowed("http://192.168.1.229:8351", "192.168.1.229:8350", consolePort: 0));
+}

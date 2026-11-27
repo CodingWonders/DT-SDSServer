@@ -14,6 +14,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Sds.Core;
 using Sds.Server.Infrastructure;
@@ -117,15 +118,11 @@ builder.Services.AddExceptionHandler<SdsExceptionHandler>();
 builder.Services.AddOpenApi();
 
 // Browser front ends hosted elsewhere (for example the Sds.Web test console) call the API
-// cross origin with Windows credentials. Only the origins listed in Sds:CorsOrigins are
-// allowed, and credentials require explicit origins (no wildcard).
-var corsOrigins = builder.Configuration.GetSection("Sds:CorsOrigins").Get<string[]>() ?? [];
-builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-    .WithOrigins(corsOrigins)
-    .AllowCredentials()
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .WithExposedHeaders("Location", "Content-Disposition")));
+// cross origin with Windows credentials. Allowed: the origins listed in Sds:CorsOrigins, and
+// the console on this machine (port Sds:ConsolePort) under whatever host name the browser
+// used. Credentials require explicit origins (no wildcard). See SdsCorsPolicyProvider.
+builder.Services.AddSingleton<ICorsPolicyProvider, SdsCorsPolicyProvider>();
+builder.Services.AddCors();
 
 // WIM files are large: lift the request size limit (individual endpoints may still restrict).
 builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = null);
